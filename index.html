@@ -14,9 +14,9 @@ async function save(){
  if(saving)return;
  const desired=structuredClone(db),baseline=structuredClone(lastServer);
  if(!remoteReady||!authUser){localChanges=true;saveLocal();render();status('⚠ Alteração guardada apenas neste aparelho; Firebase indisponível.');return;}
- saving=true;setLocked(true);status('Enviando alterações ao Firebase...');
+ localChanges=true;saveLocal();saving=true;setLocked(true);status('Enviando alterações ao Firebase...');
  try{
-  const result=await runTransaction(ref(rtdb,DATA_PATH),current=>{
+  const result=await Promise.race([runTransaction(ref(rtdb,DATA_PATH),current=>{
    const existing=current||{purchases:[],payments:[]};
    const merged={purchases:Array.isArray(existing.purchases)?existing.purchases.slice():Object.values(existing.purchases||{}),payments:Array.isArray(existing.payments)?existing.payments.slice():Object.values(existing.payments||{})};
    for(const kind of ['purchases','payments']){
@@ -33,7 +33,7 @@ async function save(){
    const paid=merged.payments.reduce((v,x)=>v+Number(x.value||0),0);
    if(paid>total)return;
    return merged;
-  },{applyLocally:false});
+  },{applyLocally:false}),new Promise((_,reject)=>setTimeout(()=>reject(Error('Tempo limite de 15 segundos. Confira as regras e a conexão; seus dados continuam salvos neste aparelho.')),15000))]);
   if(!result.committed)throw Error('Operação cancelada: pagamentos excedem a dívida.');
   localChanges=false;db=result.snapshot.val()||{purchases:[],payments:[]};lastServer=structuredClone(db);saveLocal();render();status('✓ Salvo e sincronizado no Firebase');
  }catch(e){localChanges=true;saveLocal();render();status('⚠ Não sincronizado: '+e.message);alert('Alteração ficou apenas neste aparelho. Erro Firebase: '+e.message)}
